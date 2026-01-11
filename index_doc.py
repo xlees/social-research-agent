@@ -8,9 +8,15 @@ import faiss
 
 
 from sentence_transformers import SentenceTransformer
-EMBED_MODEL_ID = "DMetaSoul/sbert-chinese-general-v2-distill"
+
+# DMetaSoul/sbert-chinese-general-v2
+# thenlper/gte-large
+# EMBED_MODEL_ID = "thenlper/gte-large"
+model_path = "./emb_models/thenlper/gte-large"
+# EMBED_MODEL_ID = "DMetaSoul/sbert-chinese-general-v2-distill"
+# EMBED_MODEL_ID = "Qwen/Qwen2.5-32B-Instruct"
 # emb_model = SentenceTransformer("all-MiniLM-L6-v2")
-emb_model = SentenceTransformer(EMBED_MODEL_ID,device="cpu" )
+emb_model = SentenceTransformer(model_path,device="cpu" )
 
 
 doc_name = "model_q.docx"
@@ -27,9 +33,6 @@ chunker = HybridChunker()
 chunk_iter = chunker.chunk(dl_doc=doc)
     
 
-
-from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTokenizer
-from transformers import AutoTokenizer
 
 # 基于BERT架构，采用MiniLM知识蒸馏技术，在保持高性能的同时大幅减小了模型体积
 # {
@@ -67,6 +70,12 @@ for i, chunk in enumerate(chunk_iter):
     print()
     
     chunks.append(enriched_text)
+
+# 存储chunks到本地文件
+chunk_file = "doc_chunks.txt"
+with open(chunk_file, "w", encoding="utf-8") as f:
+    for idx,chunk in enumerate(chunks):
+        f.write(f"{idx}:{chunk}\x01")
     
 # 生成向量
 chunk_embeddings = emb_model.encode(chunks, convert_to_numpy=True)
@@ -76,6 +85,7 @@ print("chunk_embeddings.shape: ", chunk_embeddings.shape)
 if os.path.exists("rag.index"):
     rag_index = faiss.read_index("rag.index")
     print("Loaded existing FAISS index, total chunks:", rag_index.ntotal)
+
 else:
     rag_index = faiss.IndexFlatL2(chunk_embeddings.shape[1])
 
@@ -88,7 +98,7 @@ faiss.write_index(rag_index, "rag.index")
 
 
 # search
-query = "实人认证"
+query = "巴塔哥尼亚大学"
 query_vector = emb_model.encode([query], show_progress_bar=True, convert_to_numpy=True)
 print("Query vector shape:", query_vector.shape, type(query_vector))
 
