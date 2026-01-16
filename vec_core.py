@@ -32,6 +32,7 @@ pipeline_options.table_structure_options.do_cell_matching = True
 from docling.chunking import HybridChunker
 from sentence_transformers import SentenceTransformer
 from pymilvus import MilvusClient
+from transformers import AutoTokenizer
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -60,6 +61,8 @@ def chunk_file(fpath: str) -> list:
     Returns:
         list: 分块后的文本列表
     """
+    MAX_TOKENS = 512
+    
     doc_converter = DocumentConverter(
         allowed_formats=[
             InputFormat.PDF,
@@ -84,10 +87,16 @@ def chunk_file(fpath: str) -> list:
     )
 
     doc = doc_converter.convert(fpath).document
-    print(f"\nDocument '{fpath}' format converted successfully.\n")
+    print(f"\nDocument '{fpath}' format converted successfully by docling.\n")
 
     chunk_list = []
-    chunker = HybridChunker()
+    tokenizer = AutoTokenizer.from_pretrained("./emb_models/thenlper/gte-large")
+    chunker = HybridChunker(
+        tokenizer=tokenizer,    # can also just pass model name instead of tokenizer instance
+        max_tokens=MAX_TOKENS,  # optional, by default derived from `tokenizer`
+        merge_peers=True,       # optional, defaults to True
+        overlap_tokens=64,
+    )
     for idx, chunk in enumerate(chunker.chunk(dl_doc=doc)):
         chunk_text = chunker.contextualize(chunk=chunk)
         chunk_list.append(chunk_text)
@@ -105,6 +114,7 @@ def chunks_into_vecdb(fpath: str, emb_model: SentenceTransformer, drop: bool=Fal
     """
     chunks: list = chunk_file(fpath)
 
+    print(f"\nGenerating embeddings for chunks of file '{fpath}'...")
     chunk_embeddings = emb_model.encode(chunks, convert_to_numpy=True)
 
     # 创建向量数据
@@ -152,7 +162,7 @@ def chunks_into_vecdb(fpath: str, emb_model: SentenceTransformer, drop: bool=Fal
 
 
 def insert_all_docs(doc_dir: str, drop: bool=False) -> None:
-    emb_model = SentenceTransformer("./emb_models/thenlper/gte-large", device="cpu" )
+    emb_model = SentenceTransformer(model_name_or_path="./emb_models/thenlper/gte-large", device="cpu" )
 
     if not os.path.exists(doc_dir):
         print(f"directory '{doc_dir}' does not exist!")
@@ -171,6 +181,8 @@ def insert_all_docs(doc_dir: str, drop: bool=False) -> None:
 def create_collection_index():
     print("\nCreating index on Milvus collection...")
 
+    from pymilvus import connections, Collection
+    
     index_params = MilvusClient.prepare_index_params()
     index_params.add_index(
         field_name="vector", # Name of the vector field to be indexed
@@ -182,17 +194,32 @@ def create_collection_index():
             "efConstruction": 100 # Number of candidate neighbors considered for connection during index construction
         }
     )
+
+    connections.connect(
+        alias="default",
+        uri=VEC_DB_PATH
+    )
+     
+    collection = Collection(name=COLLECTION_NAME,using='default')
+   
+    collection.create_index(
+        field_name="vector",
+        index_params=index_params
+    )
+    
     print("Index parameters prepared.")
 
 
 if __name__ == "__main__":
-    # print(file_md5("doc1.txt"))
 
     # emb_model = SentenceTransformer("./emb_models/thenlper/gte-large",device="cpu" )
     # chunks_into_vecdb("model_q.docx", emb_model)
 
-    doc_dir = "./docs"
+    if len(sys.argv) > 1:
+        doc_dir = sys.argv[1]
+    else:
+        doc_dir = "docs"
 
-    insert_all_docs(doc_dir = doc_dir, drop=False)
+    # insert_all_docs(doc_dir = doc_dir, drop=False)
 
     create_collection_index()
