@@ -220,6 +220,6 @@ if __name__ == "__main__":
     else:
         doc_dir = "docs"
 
-    # insert_all_docs(doc_dir = doc_dir, drop=False)
+    insert_all_docs(doc_dir = doc_dir, drop=False)
 
     create_collection_index()

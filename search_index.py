@@ -21,7 +21,7 @@ print("\n===== Existing collections:", all_collections, " =====\n")
 
 # 搜索
 # query = "阿根廷国家公园的建设与民族国家建构有什么关系"
-query = "拉丁美洲都建了哪些国家公园"
+query = "拉丁美洲都有哪些国家建了国家公园？"
 query_vector = emb_model.encode([query], show_progress_bar=True, convert_to_numpy=True)
 # print("Query vector shape:", query_vector.shape, type(query_vector),"\n")
 
@@ -47,3 +47,5 @@ for hits in res:
         ind += 1
 
     print()
+
+# 
